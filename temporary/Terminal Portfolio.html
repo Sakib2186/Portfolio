@@ -1,0 +1,1187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>sakib@sami: ~</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #1b1410;
+    --bg2:#0f0a08;
+    --fg: #e8e3da;
+    --muted:#8a8278;
+    --green:#8ec07c;
+    --yellow:#e6c384;
+    --blue:#7daea3;
+    --magenta:#d3869b;
+    --cyan:#89b4b6;
+    --red:#ea6962;
+    --orange:#e78a4e;
+    --prompt-user:#8ec07c;
+    --prompt-host:#8ec07c;
+    --prompt-path:#7daea3;
+    --selection: rgba(141,174,163,0.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse at center, #25180f 0%, var(--bg) 55%, var(--bg2) 100%);
+    color:var(--fg);
+    font-family: "Ubuntu Mono","JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size:15.5px;
+    line-height:1.45;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--selection); color:var(--fg);}
+
+  /* window chrome (very subtle, optional) */
+  .term{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column;
+    padding: 22px 26px 28px;
+    overflow:hidden;
+  }
+  .titlebar{
+    position:absolute; top:0; left:0; right:0;
+    height:30px;
+    display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(#2a1d16,#1c130e);
+    border-bottom:1px solid #0a0604;
+    color:#bdb6ab;
+    font-size:12px;
+    letter-spacing:.02em;
+    user-select:none;
+  }
+  .titlebar .dots{ position:absolute; left:10px; display:flex; gap:8px; }
+  .titlebar .dots span{
+    width:12px; height:12px; border-radius:50%;
+    background:#444; border:1px solid rgba(0,0,0,.4);
+  }
+  .titlebar .dots .r{background:#e06c5b;}
+  .titlebar .dots .y{background:#e0b94b;}
+  .titlebar .dots .g{background:#7bbf6a;}
+  .term{ padding-top: 48px; }
+
+  /* CRT-like very subtle scanlines + glow */
+  .crt::before{
+    content:"";
+    pointer-events:none;
+    position:fixed; inset:0;
+    background:
+      repeating-linear-gradient(to bottom, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px);
+    mix-blend-mode:overlay;
+    z-index:5;
+  }
+  .crt::after{
+    content:"";
+    pointer-events:none;
+    position:fixed; inset:0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+    z-index:6;
+  }
+
+  .screen{
+    flex:1;
+    overflow-y:auto;
+    overflow-x:hidden;
+    white-space:pre-wrap;
+    word-break:break-word;
+    scrollbar-width: thin;
+    scrollbar-color: #3a2a20 transparent;
+    text-shadow: 0 0 1px rgba(232,227,218,0.25);
+  }
+  .screen::-webkit-scrollbar{ width:8px; }
+  .screen::-webkit-scrollbar-thumb{ background:#3a2a20; border-radius:4px; }
+
+  .line{ display:block; }
+  .row{ display:flex; align-items:flex-start; }
+  .row > .ps1{ flex:0 0 auto; }
+  .row > .cmd{ flex:1 1 auto; min-width:0; white-space:pre-wrap; word-break:break-word; }
+
+  /* colors */
+  .g{color:var(--green);}
+  .y{color:var(--yellow);}
+  .b{color:var(--blue);}
+  .m{color:var(--magenta);}
+  .c{color:var(--cyan);}
+  .r{color:var(--red);}
+  .o{color:var(--orange);}
+  .mu{color:var(--muted);}
+  .bold{font-weight:700;}
+  .underline{text-decoration:underline;}
+
+  .ok{ color:var(--green); }
+  .fail{ color:var(--red); }
+  .warn{ color:var(--yellow); }
+
+  /* prompt segments */
+  .ps1 .user{ color:var(--prompt-user); font-weight:700; }
+  .ps1 .sep{ color:var(--fg); }
+  .ps1 .path{ color:var(--prompt-path); font-weight:700; }
+  .ps1 .sym{ color:var(--fg); margin-right:6px; }
+
+  /* input row */
+  #input-row{ display:flex; align-items:flex-start; gap:0; }
+  #input-row .ps1{ white-space:pre; }
+  #input-wrap{ position:relative; flex:1; min-width:0; }
+  #input{
+    background:transparent; border:0; outline:0;
+    color:var(--fg);
+    font: inherit;
+    width:100%;
+    caret-color: transparent;
+    padding:0;
+  }
+  /* Custom blinking block cursor that follows text */
+  #cursor{
+    display:inline-block;
+    width:0.6em; height:1.05em;
+    background:var(--fg);
+    vertical-align:-2px;
+    margin-left:1px;
+    animation: blink 1.05s steps(1) infinite;
+    opacity:.95;
+  }
+  @keyframes blink { 50%{ opacity:0; } }
+
+  /* ascii art block */
+  .ascii{ white-space:pre; line-height:1.05; font-family: "JetBrains Mono","Ubuntu Mono", monospace; font-size: 13.5px; }
+
+  /* neofetch layout */
+  .neofetch{ display:flex; gap:22px; }
+  .neofetch .left{ flex:0 0 auto; }
+  .neofetch .right{ flex:1 1 auto; min-width:0; }
+
+  /* ls grid */
+  .ls{ display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:0 18px; }
+  .ls .dir{ color:var(--blue); font-weight:700;}
+  .ls .file{ color:var(--fg); }
+  .ls .exec{ color:var(--green); font-weight:700;}
+
+  /* tree */
+  .tree .dir{ color:var(--blue); font-weight:700; }
+  .tree .file{ color:var(--fg); }
+
+  /* selection lock */
+  body.no-select { user-select:none; }
+
+  /* mobile */
+  @media (max-width: 720px){
+    body{ font-size:13.5px; }
+    .term{ padding: 44px 14px 18px; }
+    .neofetch{ flex-direction:column; gap:6px; }
+    .ls{ grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 420px){
+    .ascii{ font-size: 10.5px; }
+  }
+</style>
+</head>
+<body class="crt">
+  <div class="term" id="term">
+    <div class="titlebar">
+      <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span><span class="mu">sakib@sami</span>: ~</span>
+    </div>
+
+    <div class="screen" id="screen" tabindex="0"></div>
+
+    <div id="input-row" style="display:none;">
+      <div class="ps1" id="ps1"></div>
+      <div id="input-wrap">
+        <input id="input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        <span id="cursor"></span>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ========================================================================
+   sakib-shell — an original terminal-style portfolio
+   ======================================================================== */
+
+const $screen = document.getElementById('screen');
+const $row    = document.getElementById('input-row');
+const $ps1    = document.getElementById('ps1');
+const $input  = document.getElementById('input');
+const $cursor = document.getElementById('cursor');
+
+let CWD = ['home','sakib'];
+const USER = 'sakib';
+const HOST = 'sami';
+
+/* ----------------------- virtual filesystem ----------------------- */
+function f(content){ return { type:'file', content }; }
+function d(children){ return { type:'dir', children }; }
+
+const FS = d({
+  home: d({
+    sakib: d({
+      'about':       d({ 'bio.txt': f(bioText()) }),
+      'education':   d({ 'academics.txt': f(educationText()) }),
+      'experience':  d({
+        'tcl_informatix.txt': f(tclText()),
+        'outlier_ai.txt':     f(outlierText()),
+        'teaching_assistant.txt': f(taText()),
+      }),
+      'projects':    d({
+        'dentistry_ai.txt': f(projectDentistry()),
+        'identifind.txt':   f(projectIdentifind()),
+        'checkmate.txt':    f(projectCheckmate()),
+        'space_voyage.txt': f(projectSpace()),
+      }),
+      'skills':      d({ 'stack.txt': f(skillsText()) }),
+      'leadership':  d({ 'ieee.txt': f(ieeeText()) }),
+      'contact':     d({ 'connect.txt': f(contactText()) }),
+      'socials':     d({
+        'github.txt':   f("https://github.com/Sakib2186"),
+        'linkedin.txt': f("https://www.linkedin.com/in/md-sakib-sami-75492822b"),
+        'leetcode.txt': f("https://leetcode.com/u/Sakib_Sami/"),
+      }),
+      '.bash_history': f("(history is your business, not mine)"),
+      'README.md': f(readmeText()),
+    })
+  }),
+  etc: d({
+    'os-release': f('NAME="sakib-shell"\nVERSION="24.10 (Lambda Lake)"\nID=sakib\nPRETTY_NAME="sakib-shell 24.10"\n'),
+    'motd': f('Welcome. The terminal IS the portfolio.\n'),
+  }),
+  var: d({ log: d({ 'syslog': f("Nothing interesting in here. Try `neofetch`.") }) }),
+  usr: d({ bin: d({}) }),
+  tmp: d({}),
+});
+
+/* ----------------------- content blocks ----------------------- */
+function bioText(){ return (
+`Backend Engineer  •  AI Engineer
+
+I build scalable backend systems and intelligent software — APIs that
+don't fall over at 3am, and ML pipelines that actually make decisions
+worth shipping.
+
+Interests:
+  - AI research (NLP, computer vision)
+  - Distributed backend infrastructure
+  - Clean, observable, boring-in-the-best-way systems
+
+Currently:
+  $ tail -f ./curiosity.log
+`);}
+
+function educationText(){ return (
+`North South University
+  B.Sc, Computer Science & Engineering
+  GPA: 3.96 / 4.00
+
+A Levels:  2 A*, 1 A
+O Levels:  6 A*, 1 A, 1 B
+`);}
+
+function tclText(){ return (
+`[ TCL Informatix Ltd. ]  Backend Engineer
+
+- Designed and shipped Django REST APIs powering internal
+  payroll and operations systems.
+- Built CI/CD pipelines; reduced deploy time from hours to minutes.
+- Tuned background workloads with Celery + Redis.
+- Hardened production stack: NGINX + Gunicorn, zero-downtime rollouts.
+- Profiled and rewrote hot paths for backend scalability.
+`);}
+
+function outlierText(){ return (
+`[ Outlier AI ]  AI Engineer (contract)
+
+- LLM optimization and evaluation across reasoning tasks.
+- Reverse-prompting to surface model failure modes.
+- Annotated and refined training data; raised dataset signal-to-noise.
+- Wrote internal guidelines used by downstream annotators.
+`);}
+
+function taText(){ return (
+`[ Teaching Assistant ]  North South University
+
+- Mentored undergraduate students across core CS coursework.
+- Evaluated scripts and projects; gave actionable written feedback.
+- One-on-one support sessions for struggling students.
+`);}
+
+function projectDentistry(){ return (
+`From Pixels to Biomimetic Preparations
+-------------------------------------------------------------
+AI that understands dental caries like a clinician by learning
+reconstructive intent from preparation images.
+
+stack    : Python, PyTorch, OpenCV
+domain   : computer vision, medical imaging
+status   : research
+
+repo:
+  https://github.com/Sakib2186/From-Pixels-to-Biomimetic-Preparations-AI-That-Understands-Caries-Like-a-Clinician-by-Learning-Rec
+`);}
+
+function projectIdentifind(){ return (
+`IdentiFind  (Capstone)
+-------------------------------------------------------------
+Identity verification + lost-and-found platform. Face matching
+pipeline + REST backend + clean operator console.
+
+stack    : Python, Django, DRF, deep learning
+status   : capstone
+
+repo:
+  https://github.com/Sakib2186/Capstone-IdentiFind
+`);}
+
+function projectCheckmate(){ return (
+`CheckMate
+-------------------------------------------------------------
+Chess engine / play companion exploring move search and
+position evaluation heuristics.
+
+stack    : C++, search, evaluation heuristics
+status   : personal
+
+repo:
+  https://github.com/Sakib2186/Check-Mate
+`);}
+
+function projectSpace(){ return (
+`Space Voyage
+-------------------------------------------------------------
+Interactive space exploration project — physics, orbital
+mechanics, and a soft spot for the stars.
+
+stack    : JavaScript, WebGL
+status   : personal
+
+repo:
+  https://github.com/Sakib2186/Space-Voyage
+`);}
+
+function skillsText(){ return (
+`Languages   : Python · Java · C / C++ · C#
+Backend     : Django · DRF · Spring Boot
+AI / ML     : Deep Learning · NLP · Computer Vision
+DevOps      : Docker · Redis · NGINX · Gunicorn · Git
+Databases   : PostgreSQL · MySQL · MongoDB
+`);}
+
+function ieeeText(){ return (
+`Leadership — IEEE (NSU Student Branch)
+
+- Organized technical workshops and student-led talks.
+- Coordinated team logistics for chapter events.
+- Mentored juniors entering CS / research tracks.
+`);}
+
+function contactText(){ return (
+`Want to talk?
+
+email     : sakib.sami@example.com   (replace with the real one)
+github    : https://github.com/Sakib2186
+linkedin  : https://www.linkedin.com/in/md-sakib-sami-75492822b
+leetcode  : https://leetcode.com/u/Sakib_Sami/
+
+tip: try \`hireme\`
+`);}
+
+function readmeText(){ return (
+`# sakib-shell
+
+You are inside an interactive terminal portfolio.
+
+Try:
+  help           - list available commands
+  ls             - list current directory
+  neofetch       - system summary
+  projects       - portfolio projects
+  about          - who am I
+  hireme         - if you're looking to hire
+
+Tab completes. Up/Down recalls history. Ctrl-L clears.
+`);}
+
+/* ----------------------- fs helpers ----------------------- */
+function pathToArr(p){
+  if(!p) return CWD.slice();
+  let parts;
+  if(p.startsWith('/')) parts = p.split('/').filter(Boolean);
+  else if(p === '~' || p.startsWith('~/')) {
+    parts = ['home','sakib'].concat(p.slice(1).split('/').filter(Boolean));
+  } else {
+    parts = CWD.concat(p.split('/').filter(Boolean));
+  }
+  const out = [];
+  for(const part of parts){
+    if(part === '.') continue;
+    if(part === '..') out.pop();
+    else out.push(part);
+  }
+  return out;
+}
+function nodeAt(arr){
+  let node = FS;
+  for(const seg of arr){
+    if(!node || node.type !== 'dir') return null;
+    node = node.children[seg];
+    if(!node) return null;
+  }
+  return node;
+}
+function fmtPath(arr){
+  if(arr.length>=2 && arr[0]==='home' && arr[1]==='sakib'){
+    return '~' + (arr.length>2 ? '/'+arr.slice(2).join('/') : '');
+  }
+  return '/'+arr.join('/');
+}
+
+/* ----------------------- output helpers ----------------------- */
+function escapeHTML(s){
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function print(html=''){
+  const div = document.createElement('div');
+  div.className = 'line';
+  div.innerHTML = html;
+  $screen.appendChild(div);
+  scrollBottom();
+}
+function printText(text=''){ print(escapeHTML(text)); }
+
+function scrollBottom(){
+  $screen.scrollTop = $screen.scrollHeight;
+}
+
+function ps1HTML(){
+  return `<span class="ps1"><span class="user">${USER}@${HOST}</span><span class="sep">:</span><span class="path">${escapeHTML(fmtPath(CWD))}</span><span class="sym">$</span></span>`;
+}
+function echoPrompt(cmd){
+  print(`<span class="row">${ps1HTML()}<span class="cmd">${escapeHTML(cmd)}</span></span>`);
+}
+function updatePromptUI(){
+  $ps1.innerHTML = `<span class="user">${USER}@${HOST}</span><span class="sep">:</span><span class="path">${escapeHTML(fmtPath(CWD))}</span><span class="sym">$</span>&nbsp;`;
+}
+
+/* ----------------------- commands ----------------------- */
+const CMDS = {};
+const HELP = {};
+
+function defcmd(name, fn, help){ CMDS[name] = fn; if(help) HELP[name] = help; }
+
+defcmd('help', (args)=>{
+  if(args[0]){
+    const h = HELP[args[0]];
+    if(h){ print(h); return; }
+    printText(`help: no help topic for '${args[0]}'`);
+    return;
+  }
+  print(
+`<span class="bold">sakib-shell — available commands</span>
+
+<span class="y">filesystem</span>      ls  cd  pwd  cat  tree  touch  mkdir  rm  clear
+<span class="y">portfolio</span>       about  education  experience  projects  skills
+                leadership  contact  socials  github  linkedin
+                leetcode  resume
+<span class="y">system</span>          neofetch  uname  whoami  date  history  echo  man
+                sudo  locate  exit
+<span class="y">extras</span>          easteregg  coffee  hireme  hacktheplanet
+
+Type <span class="c">&lt;command&gt; --help</span> or <span class="c">man &lt;command&gt;</span> for details.`);
+}, `Usage: help [COMMAND]
+
+Show available commands, or detailed help for one command.`);
+
+defcmd('pwd', ()=> printText('/'+CWD.join('/')),
+`Usage: pwd
+Print the current working directory.`);
+
+defcmd('whoami', ()=> printText(USER),
+`Usage: whoami
+Print effective user name.`);
+
+defcmd('date', ()=> printText(new Date().toString()),
+`Usage: date
+Print the system date and time.`);
+
+defcmd('uname', (args)=>{
+  if(args.includes('-a')) printText('sakib-shell sami 24.10-generic #1 SMP x86_64 GNU/Linux');
+  else printText('sakib-shell');
+}, `Usage: uname [-a]
+Print system information.`);
+
+defcmd('echo', (args, raw)=> printText(raw.slice(4).replace(/^\s+/,'') || ''),
+`Usage: echo [STRING]...
+Print the given string(s).`);
+
+defcmd('clear', ()=> { $screen.innerHTML = ''; },
+`Usage: clear
+Clear the terminal screen. (Ctrl-L also works.)`);
+
+defcmd('ls', (args)=>{
+  const flags = args.filter(a=>a.startsWith('-'));
+  const targets = args.filter(a=>!a.startsWith('-'));
+  const showAll = flags.some(f=>f.includes('a'));
+  const long = flags.some(f=>f==='-l' || f.includes('l'));
+  const paths = targets.length? targets : ['.'];
+  for(let i=0;i<paths.length;i++){
+    if(paths.length>1) print(`<span class="mu">${escapeHTML(paths[i])}:</span>`);
+    const arr = pathToArr(paths[i]);
+    const node = nodeAt(arr);
+    if(!node){ printText(`ls: cannot access '${paths[i]}': No such file or directory`); continue; }
+    if(node.type==='file'){ printText(paths[i]); continue; }
+    let entries = Object.keys(node.children);
+    if(!showAll) entries = entries.filter(e=>!e.startsWith('.'));
+    entries.sort();
+    if(long){
+      const lines = entries.map(name=>{
+        const ch = node.children[name];
+        const isDir = ch.type==='dir';
+        const perm = isDir? 'drwxr-xr-x':'-rw-r--r--';
+        const size = isDir? 4096 : (ch.content?.length || 0);
+        const cls = isDir? 'dir':'file';
+        return `${perm} 1 ${USER} ${USER} ${String(size).padStart(6,' ')} 2026-05-26 12:00 <span class="${cls}">${escapeHTML(name)}${isDir?'/':''}</span>`;
+      });
+      print(`<div class="tree">total ${entries.length}\n${lines.join('\n')}</div>`);
+    } else {
+      const cells = entries.map(name=>{
+        const ch = node.children[name];
+        const isDir = ch.type==='dir';
+        return `<span class="${isDir?'dir':'file'}">${escapeHTML(name)}${isDir?'/':''}</span>`;
+      });
+      print(`<div class="ls">${cells.join('')}</div>`);
+    }
+  }
+},
+`Usage: ls [OPTION]... [FILE]...
+
+List information about files and directories.
+
+Options:
+  -a, --all    show hidden files
+  -l           use long listing format`);
+
+defcmd('cd', (args)=>{
+  const target = args[0] || '~';
+  const arr = pathToArr(target);
+  const node = nodeAt(arr);
+  if(!node){ printText(`cd: ${target}: No such file or directory`); return; }
+  if(node.type!=='dir'){ printText(`cd: ${target}: Not a directory`); return; }
+  CWD = arr;
+  updatePromptUI();
+},
+`Usage: cd [DIRECTORY]
+Change the current working directory. With no argument, returns to home (~).`);
+
+defcmd('cat', (args)=>{
+  if(!args.length){ printText('cat: missing operand'); return; }
+  for(const p of args){
+    const arr = pathToArr(p);
+    const node = nodeAt(arr);
+    if(!node){ printText(`cat: ${p}: No such file or directory`); continue; }
+    if(node.type==='dir'){ printText(`cat: ${p}: Is a directory`); continue; }
+    printText(node.content);
+  }
+},
+`Usage: cat [FILE]...
+Concatenate FILE(s) to standard output.`);
+
+defcmd('tree', (args)=>{
+  const p = args[0] || '.';
+  const arr = pathToArr(p);
+  const node = nodeAt(arr);
+  if(!node){ printText(`tree: ${p}: No such file or directory`); return; }
+  const out = [];
+  out.push(`<span class="dir">${escapeHTML(fmtPath(arr))}</span>`);
+  function walk(n, prefix){
+    if(n.type!=='dir') return;
+    const names = Object.keys(n.children).filter(x=>!x.startsWith('.')).sort();
+    names.forEach((name,i)=>{
+      const last = i === names.length-1;
+      const branch = last? '└── ':'├── ';
+      const child = n.children[name];
+      const cls = child.type==='dir'?'dir':'file';
+      out.push(`${prefix}${branch}<span class="${cls}">${escapeHTML(name)}${child.type==='dir'?'/':''}</span>`);
+      if(child.type==='dir') walk(child, prefix + (last?'    ':'│   '));
+    });
+  }
+  walk(node, '');
+  print(`<div class="tree">${out.join('\n')}</div>`);
+},
+`Usage: tree [PATH]
+List contents of directories in a tree-like format.`);
+
+defcmd('touch', (args)=>{
+  if(!args.length){ printText('touch: missing file operand'); return; }
+  for(const p of args){
+    const arr = pathToArr(p);
+    const name = arr.pop();
+    const parent = nodeAt(arr);
+    if(!parent || parent.type!=='dir'){ printText(`touch: cannot touch '${p}': No such file or directory`); continue; }
+    if(!parent.children[name]) parent.children[name] = f('');
+  }
+},
+`Usage: touch FILE...
+Create empty files (or update timestamps).`);
+
+defcmd('mkdir', (args)=>{
+  if(!args.length){ printText('mkdir: missing operand'); return; }
+  for(const p of args){
+    const arr = pathToArr(p);
+    const name = arr.pop();
+    const parent = nodeAt(arr);
+    if(!parent || parent.type!=='dir'){ printText(`mkdir: cannot create directory '${p}': No such file or directory`); continue; }
+    if(parent.children[name]){ printText(`mkdir: cannot create directory '${p}': File exists`); continue; }
+    parent.children[name] = d({});
+  }
+},
+`Usage: mkdir DIRECTORY...
+Create directories.`);
+
+defcmd('rm', (args)=>{
+  const flags = args.filter(a=>a.startsWith('-'));
+  const targets = args.filter(a=>!a.startsWith('-'));
+  const recursive = flags.some(f=>f.includes('r'));
+  if(!targets.length){ printText('rm: missing operand'); return; }
+  for(const p of targets){
+    const arr = pathToArr(p);
+    const name = arr.pop();
+    const parent = nodeAt(arr);
+    if(!parent || !parent.children[name]){ printText(`rm: cannot remove '${p}': No such file or directory`); continue; }
+    const node = parent.children[name];
+    if(node.type==='dir' && !recursive){ printText(`rm: cannot remove '${p}': Is a directory`); continue; }
+    if(arr.length<2 || arr[0]!=='home'){ printText(`rm: refusing to remove outside ~`); continue; }
+    delete parent.children[name];
+  }
+},
+`Usage: rm [OPTION]... FILE...
+
+Remove files or directories.
+
+Options:
+  -r, -R    remove directories and their contents recursively`);
+
+defcmd('history', ()=>{
+  HIST.forEach((c,i)=> print(`${String(i+1).padStart(4,' ')}  ${escapeHTML(c)}`));
+},
+`Usage: history
+Display command history.`);
+
+defcmd('man', (args)=>{
+  if(!args.length){ printText('What manual page do you want?\nFor example, try \'man man\'.'); return; }
+  const t = args[0];
+  if(t==='man'){
+    print(`MAN(1)\n\nNAME\n    man - interface to the on-line reference manuals\n\nSYNOPSIS\n    man COMMAND\n\nDESCRIPTION\n    Display the manual page for COMMAND.\n`);
+    return;
+  }
+  if(HELP[t]){
+    print(`${t.toUpperCase()}(1)\n\nNAME\n    ${t} — sakib-shell builtin\n\n${escapeHTML(HELP[t])}\n`);
+  } else {
+    printText(`No manual entry for ${t}`);
+  }
+},
+`Usage: man COMMAND
+Display the manual page for COMMAND.`);
+
+defcmd('sudo', (args, raw)=>{
+  const rest = raw.replace(/^sudo\s*/,'');
+  if(!rest){ printText('usage: sudo COMMAND'); return; }
+  print(`<span class="mu">[sudo] password for ${USER}:</span>`);
+  setTimeout(()=>{
+    print(`<span class="r">sudo: nice try.</span> the sandbox doesn't grant root for plain text auth.`);
+    print(`<span class="mu">try:</span> hacktheplanet`);
+  }, 250);
+},
+`Usage: sudo COMMAND
+Execute COMMAND with elevated privileges. (You won't.)`);
+
+defcmd('locate', (args)=>{
+  if(!args.length){ printText('locate: no pattern'); return; }
+  const q = args[0].toLowerCase();
+  const hits = [];
+  (function walk(node, path){
+    if(node.type!=='dir') return;
+    for(const [name,ch] of Object.entries(node.children)){
+      const p = path+'/'+name;
+      if(p.toLowerCase().includes(q)) hits.push(p);
+      if(ch.type==='dir') walk(ch, p);
+    }
+  })(FS,'');
+  if(!hits.length) printText('(no matches)');
+  else hits.forEach(h=>printText(h));
+},
+`Usage: locate PATTERN
+Find files by name (substring match).`);
+
+defcmd('exit', ()=>{
+  print(`<span class="mu">logout</span>`);
+  print(`<span class="mu">Connection to sami closed.</span>`);
+  $row.style.display = 'none';
+  document.body.classList.add('no-select');
+},
+`Usage: exit
+End the shell session.`);
+
+/* ---- portfolio commands ---- */
+
+function catFile(path){
+  const arr = pathToArr(path);
+  const node = nodeAt(arr);
+  if(node && node.type==='file') printText(node.content);
+  else printText(`cannot read ${path}`);
+}
+
+defcmd('about',      ()=> catFile('~/about/bio.txt'),
+`Usage: about
+Show a short bio.`);
+
+defcmd('education',  ()=> catFile('~/education/academics.txt'),
+`Usage: education
+Show academic background.`);
+
+defcmd('experience', (args)=>{
+  if(args[0]==='--list' || args.length===0){
+    print(`<span class="y">experience/</span>
+  - TCL Informatix Ltd.     (Backend Engineer)
+  - Outlier AI              (AI Engineer, contract)
+  - Teaching Assistant      (North South University)
+
+Try: <span class="c">cat ~/experience/tcl_informatix.txt</span>`);
+  } else if(args[0]==='--all'){
+    catFile('~/experience/tcl_informatix.txt'); print('');
+    catFile('~/experience/outlier_ai.txt');     print('');
+    catFile('~/experience/teaching_assistant.txt');
+  }
+},
+`Usage: experience [OPTION]
+
+Display work experience.
+
+Options:
+  --list   list roles (default)
+  --all    print every role in full`);
+
+defcmd('projects', (args)=>{
+  if(args[0]==='--details' || args[0]==='--all'){
+    catFile('~/projects/dentistry_ai.txt'); print('');
+    catFile('~/projects/identifind.txt');   print('');
+    catFile('~/projects/checkmate.txt');    print('');
+    catFile('~/projects/space_voyage.txt');
+    return;
+  }
+  if(args[0]==='--open'){
+    const which = args[1] || '';
+    const map = {
+      dentistry: 'https://github.com/Sakib2186/From-Pixels-to-Biomimetic-Preparations-AI-That-Understands-Caries-Like-a-Clinician-by-Learning-Rec',
+      identifind:'https://github.com/Sakib2186/Capstone-IdentiFind',
+      checkmate: 'https://github.com/Sakib2186/Check-Mate',
+      space:     'https://github.com/Sakib2186/Space-Voyage',
+    };
+    const url = map[which.toLowerCase()];
+    if(!url){ printText(`projects --open: unknown project '${which}'. try: dentistry | identifind | checkmate | space`); return; }
+    openURL(url); return;
+  }
+  print(
+`<span class="y bold">projects</span>  <span class="mu">(use \`projects --details\` for full descriptions)</span>
+
+  <span class="b">1.</span> <span class="bold">From Pixels to Biomimetic Preparations</span>
+     AI that understands dental caries like a clinician.
+     <span class="mu">repo:</span> <a class="c underline" target="_blank" rel="noopener" href="https://github.com/Sakib2186/From-Pixels-to-Biomimetic-Preparations-AI-That-Understands-Caries-Like-a-Clinician-by-Learning-Rec">github.com/Sakib2186/From-Pixels-to-Biomimetic-Preparations…</a>
+
+  <span class="b">2.</span> <span class="bold">IdentiFind</span>
+     Identity verification + lost-and-found platform (capstone).
+     <span class="mu">repo:</span> <a class="c underline" target="_blank" rel="noopener" href="https://github.com/Sakib2186/Capstone-IdentiFind">github.com/Sakib2186/Capstone-IdentiFind</a>
+
+  <span class="b">3.</span> <span class="bold">CheckMate</span>
+     Chess engine exploring search and evaluation heuristics.
+     <span class="mu">repo:</span> <a class="c underline" target="_blank" rel="noopener" href="https://github.com/Sakib2186/Check-Mate">github.com/Sakib2186/Check-Mate</a>
+
+  <span class="b">4.</span> <span class="bold">Space Voyage</span>
+     Interactive orbital-mechanics playground.
+     <span class="mu">repo:</span> <a class="c underline" target="_blank" rel="noopener" href="https://github.com/Sakib2186/Space-Voyage">github.com/Sakib2186/Space-Voyage</a>`);
+},
+`Usage: projects [OPTION]
+
+Display portfolio projects and repositories.
+
+Options:
+  --list       list all projects (default)
+  --details    show detailed project information
+  --open NAME  open repository in a new tab
+               NAME ∈ { dentistry, identifind, checkmate, space }`);
+
+defcmd('skills',     ()=> catFile('~/skills/stack.txt'),
+`Usage: skills
+Print technical stack.`);
+
+defcmd('leadership', ()=> catFile('~/leadership/ieee.txt'),
+`Usage: leadership
+Show leadership / community involvement.`);
+
+defcmd('contact',    ()=> catFile('~/contact/connect.txt'),
+`Usage: contact
+Show contact information.`);
+
+defcmd('socials', ()=>{
+  print(
+`<span class="y bold">socials</span>
+
+  <a class="c underline" target="_blank" rel="noopener" href="https://github.com/Sakib2186">github  </a>  https://github.com/Sakib2186
+  <a class="c underline" target="_blank" rel="noopener" href="https://www.linkedin.com/in/md-sakib-sami-75492822b">linkedin</a>  https://www.linkedin.com/in/md-sakib-sami-75492822b
+  <a class="c underline" target="_blank" rel="noopener" href="https://leetcode.com/u/Sakib_Sami/">leetcode</a>  https://leetcode.com/u/Sakib_Sami/`);
+},
+`Usage: socials
+List social profiles.`);
+
+defcmd('github',   ()=> openURL('https://github.com/Sakib2186'),
+`Usage: github
+Open GitHub profile in a new tab.
+
+Linked profile:
+  https://github.com/Sakib2186`);
+
+defcmd('linkedin', ()=> openURL('https://www.linkedin.com/in/md-sakib-sami-75492822b'),
+`Usage: linkedin
+Open LinkedIn profile in a new tab.
+
+Linked profile:
+  https://www.linkedin.com/in/md-sakib-sami-75492822b`);
+
+defcmd('leetcode', ()=> openURL('https://leetcode.com/u/Sakib_Sami/'),
+`Usage: leetcode
+Open LeetCode profile in a new tab.
+
+Linked profile:
+  https://leetcode.com/u/Sakib_Sami/`);
+
+defcmd('resume', ()=>{
+  print(`<span class="y">resume</span> — assembling a printable summary…\n`);
+  setTimeout(()=>{
+    CMDS['about']([]); print('');
+    CMDS['education']([]); print('');
+    CMDS['experience'](['--all']); print('');
+    CMDS['projects']([]); print('');
+    CMDS['skills']([]); print('');
+    CMDS['contact']([]);
+  }, 250);
+},
+`Usage: resume
+Print a one-shot resume (about + education + experience + projects + skills + contact).`);
+
+/* ---- neofetch ---- */
+defcmd('neofetch', ()=>{
+  const art =
+`        .--.
+       |o_o |       sakib@sami
+       |:_/ |       ----------
+      //   \\ \\      OS      : sakib-shell 24.10 (Lambda Lake)
+     (|     | )     Host    : portable carbon unit
+    /'\\_   _/\`\\    Kernel  : 6.x-sakib-generic
+    \\___)=(___/    Uptime  : ${uptime()}
+                    Shell   : sakib-sh 1.0
+                    Term    : web/xterm-compatible
+                    CPU     : neurons (8)  •  GPU : caffeine-accelerated
+                    Memory  : enough / never enough`;
+  const info =
+`<span class="bold">Name</span>        Md Sakib Sami
+<span class="bold">Role</span>        Backend Engineer  •  AI Engineer
+<span class="bold">Location</span>    Dhaka, BD
+<span class="bold">Stack</span>       Python · Django · DRF · Spring Boot
+<span class="bold">AI / ML</span>     PyTorch · NLP · Computer Vision
+<span class="bold">DevOps</span>      Docker · Redis · NGINX · Gunicorn
+<span class="bold">Databases</span>   PostgreSQL · MySQL · MongoDB
+<span class="bold">Interests</span>   research, distributed systems, chess
+
+<span class="bold">GitHub</span>      <a class="c underline" target="_blank" rel="noopener" href="https://github.com/Sakib2186">github.com/Sakib2186</a>
+<span class="bold">Experience</span>  TCL Informatix · Outlier AI · NSU TA
+
+<span class="g">●</span> <span class="r">●</span> <span class="y">●</span> <span class="b">●</span> <span class="m">●</span> <span class="c">●</span> <span class="o">●</span> <span class="mu">●</span>`;
+  print(`<div class="neofetch"><pre class="ascii left g">${art}</pre><div class="right">${info}</div></div>`);
+},
+`Usage: neofetch
+Print a stylized system + identity summary.`);
+
+/* ---- fun / hidden ---- */
+defcmd('coffee', ()=>{
+  print(
+`<pre class="ascii o">     (
+      )     (
+       ___...(-------)-....___
+   .-""       )    (          ""-.
+ .-'``'|-._             )         _.-|
+/  .--.|   \`""---...........---""\`   |
+/  /    |                             |
+|  |    |                             |
+\\  \\    |                             |
+ \`\\ \`\\  |                             |
+   \`\\ \`\\|                             |
+     \`\\ \`|                             |
+       \`\\|                             |
+         \`-.._______..--""""""""""""""\`</pre>
+HTTP 418 — I'm a teapot. But here, have some <span class="o">☕</span> anyway.`);
+},
+`Usage: coffee
+Brew a fresh cup. ☕`);
+
+defcmd('hireme', ()=>{
+  print(
+`<span class="g bold">[ HIREME — short circuit ]</span>
+
+  role        : Backend Engineer  /  AI Engineer
+  status      : open to interesting problems
+  works well  : small teams · async · clear specs · ownership
+
+  shortest path to a reply:
+    email     : sakib.sami@example.com
+    linkedin  : https://www.linkedin.com/in/md-sakib-sami-75492822b
+
+  bring:  the problem, the constraints, the user, the deadline.
+  skip:   the buzzwords.`);
+},
+`Usage: hireme
+Print contact + pitch for recruiters and hiring managers.`);
+
+defcmd('easteregg', ()=>{
+  print(
+`<span class="m">you found it.</span>
+
+  +-------------------------------+
+  |  there is no spoon.           |
+  |  there is only the prompt.    |
+  +-------------------------------+
+
+try:  <span class="c">hacktheplanet</span>`);
+},
+`Usage: easteregg
+🥚`);
+
+defcmd('hacktheplanet', ()=>{
+  const lines = [
+    '[*] scanning subnet 10.0.0.0/24 ........... done',
+    '[*] enumerating services ................... 14 hosts up',
+    '[*] bypassing firewall ..................... routed via /dev/null',
+    '[+] root access acquired ................... (pretend)',
+    '[+] uploading mischief ..................... 100%',
+    '',
+    '<span class="g">welcome to the underground. now go back to your terminal.</span>'
+  ];
+  let i=0;
+  (function step(){
+    if(i>=lines.length) return;
+    print(lines[i++]);
+    setTimeout(step, 180);
+  })();
+},
+`Usage: hacktheplanet
+🛰️`);
+
+/* ----------------------- utility ----------------------- */
+function openURL(url){
+  print(`<span class="mu">opening</span> <a class="c underline" target="_blank" rel="noopener" href="${url}">${url}</a> <span class="mu">…</span>`);
+  try { window.open(url, '_blank', 'noopener'); } catch(e){}
+}
+
+let BOOT_TIME = Date.now();
+function uptime(){
+  const s = Math.floor((Date.now()-BOOT_TIME)/1000);
+  const m = Math.floor(s/60), sec = s%60;
+  return `${m}m ${sec}s`;
+}
+
+/* ----------------------- input handling ----------------------- */
+const HIST = [];
+let histIdx = -1;
+
+function run(rawIn){
+  const raw = rawIn.trim();
+  if(!raw){ echoPrompt(''); return; }
+  echoPrompt(rawIn);
+  HIST.push(raw); histIdx = HIST.length;
+
+  // --help short-circuit
+  const helpFlag = /\s--help\b/.test(' '+raw+' ');
+  const tokens = raw.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+  const cmd = tokens.shift();
+  const args = tokens.map(t => t.replace(/^["']|["']$/g,''));
+
+  if(helpFlag){
+    const h = HELP[cmd];
+    if(h){ print(h); return; }
+  }
+
+  const fn = CMDS[cmd];
+  if(!fn){
+    print(`<span class="r">${escapeHTML(cmd)}</span>: command not found. Try <span class="c">help</span>.`);
+    return;
+  }
+  try { fn(args.filter(a=>a!=='--help'), raw); }
+  catch(e){ print(`<span class="r">error:</span> ${escapeHTML(e.message)}`); }
+}
+
+/* tab completion */
+function complete(){
+  const v = $input.value;
+  const tokens = v.split(/\s+/);
+  if(tokens.length === 1){
+    const partial = tokens[0];
+    const candidates = Object.keys(CMDS).filter(c => c.startsWith(partial));
+    if(candidates.length===1){ $input.value = candidates[0]+' '; }
+    else if(candidates.length>1){
+      echoPrompt(v);
+      print(candidates.join('   '));
+    }
+  } else {
+    // path completion on last token
+    const last = tokens[tokens.length-1];
+    const slash = last.lastIndexOf('/');
+    const base = slash>=0 ? last.slice(0,slash+1) : '';
+    const tail = slash>=0 ? last.slice(slash+1) : last;
+    const dirArr = pathToArr(base || '.');
+    const node = nodeAt(dirArr);
+    if(!node || node.type!=='dir') return;
+    const matches = Object.keys(node.children).filter(n=>n.startsWith(tail));
+    if(matches.length===1){
+      const m = matches[0];
+      const isDir = node.children[m].type==='dir';
+      tokens[tokens.length-1] = base + m + (isDir?'/':'');
+      $input.value = tokens.join(' ');
+    } else if(matches.length>1){
+      echoPrompt(v);
+      print(matches.map(m=>{
+        const isDir = node.children[m].type==='dir';
+        return `<span class="${isDir?'dir':'file'}">${escapeHTML(m)}${isDir?'/':''}</span>`;
+      }).join('   '));
+    }
+  }
+  positionCursor();
+}
+
+function positionCursor(){
+  // place fake cursor right after current input text
+  const measure = document.createElement('span');
+  measure.style.visibility='hidden';
+  measure.style.whiteSpace='pre';
+  measure.style.font = getComputedStyle($input).font;
+  measure.textContent = $input.value;
+  document.body.appendChild(measure);
+  const w = measure.getBoundingClientRect().width;
+  document.body.removeChild(measure);
+  $cursor.style.position='absolute';
+  $cursor.style.left = (w+1)+'px';
+  $cursor.style.top  = '2px';
+}
+
+$input.addEventListener('input', positionCursor);
+$input.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    const v = $input.value;
+    $input.value = '';
+    run(v);
+    positionCursor();
+    scrollBottom();
+  } else if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    if(HIST.length===0) return;
+    histIdx = Math.max(0, histIdx-1);
+    $input.value = HIST[histIdx] || '';
+    setTimeout(positionCursor,0);
+  } else if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    if(HIST.length===0) return;
+    histIdx = Math.min(HIST.length, histIdx+1);
+    $input.value = HIST[histIdx] || '';
+    setTimeout(positionCursor,0);
+  } else if(e.key === 'Tab'){
+    e.preventDefault();
+    complete();
+  } else if(e.ctrlKey && (e.key==='l' || e.key==='L')){
+    e.preventDefault();
+    $screen.innerHTML = '';
+  } else if(e.ctrlKey && (e.key==='c' || e.key==='C')){
+    if(!window.getSelection().toString()){
+      echoPrompt($input.value + '^C');
+      $input.value=''; positionCursor();
+    }
+  } else if(e.key === 'Escape'){
+    // allow boot skip via global handler
+  }
+});
+
+/* Keep focus on input when clicking anywhere except on links/text-selection */
+document.addEventListener('click', (e)=>{
+  if(e.target.tagName === 'A') return;
+  if(window.getSelection().toString()) return;
+  $input.focus();
+});
+
+/* ----------------------- boot sequence ----------------------- */
+const BOOT_LINES = [
+  ['Initializing portfolio environment',                 60],
+  ['Mounting /home/sakib                               ', 80],
+  ['Loading backend services (Django, DRF, Gunicorn)',   90],
+  ['Starting AI modules (PyTorch, NLP, vision)',         110],
+  ['Connecting neural pipelines',                        80],
+  ['Reticulating splines',                               60],
+  ['Launching sakib-shell',                              90],
+  ['System ready',                                       80],
+];
+
+let bootSkipped = false;
+function bootSkipHandler(e){
+  if(e.key === 'Escape' && !bootSkipped){
+    bootSkipped = true;
+  }
+}
+document.addEventListener('keydown', bootSkipHandler);
+
+async function boot(){
+  // banner
+  print(`<span class="mu">Connecting to <span class="c">sami.local</span> on port 22…</span>`);
+  await wait(250);
+  print(`<span class="mu">Last login: ${new Date().toUTCString()} from 10.0.0.42</span>`);
+  await wait(120);
+  print('');
+  print(`<pre class="ascii o">       _____       _    _ _
+      / ____|     | |  (_) |
+     | (___   __ _| | _| | |__
+      \\___ \\ / _\` | |/ / | '_ \\
+      ____) | (_| |   <| | |_) |
+     |_____/ \\__,_|_|\\_\\_|_.__/    sakib-shell  v1.0
+</pre>`);
+  print(`<span class="mu">Tip: press <span class="c">ESC</span> to skip boot.</span>`);
+  print('');
+
+  for(const [msg, delay] of BOOT_LINES){
+    if(bootSkipped) break;
+    print(`[ <span class="ok">  OK  </span> ] ${escapeHTML(msg)}.`);
+    await wait(delay);
+  }
+  if(bootSkipped){
+    print(`<span class="warn">…boot skipped.</span>`);
+  }
+  print('');
+  print(`<span class="g">Welcome,</span> ${USER}. The terminal is the portfolio.`);
+  print(`Type <span class="c">help</span> for available commands, or <span class="c">neofetch</span> to start.`);
+  print('');
+  document.removeEventListener('keydown', bootSkipHandler);
+
+  updatePromptUI();
+  $row.style.display = 'flex';
+  $input.focus();
+  positionCursor();
+  scrollBottom();
+}
+
+function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+boot();
+</script>
+</body>
+</html>
